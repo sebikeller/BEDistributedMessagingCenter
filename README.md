@@ -14,9 +14,10 @@ posibility to process a reply **asynchronously** in a [block][].
         //do something with answer;
     }];
 
+### Update the Makefile:
+
 Make sure to update your make file, so [Theos][] includes the
 AppSupport.framework (and if you need it: [rocketbootstrap][]).
-
 Also make sure [ARC][] is on.
 
     TARGET := iphone:clang
