@@ -5,7 +5,7 @@ This is an ObjectiveC Category for [CPDistributedMessagingCenter][]
 posibility to process a reply **asynchronously** in a [block][].
 
 ### Usage:
-``` smalltalk
+``` objective-c
 #import "CPDistributedMessagingCenter+BlockAdditions.h"
 //...
 CPDistributedMessagingCenter* center = [CPDistributedMessagingCenter centerNamed:@"aCenterName"];
