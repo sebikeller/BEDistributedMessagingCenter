@@ -15,15 +15,25 @@
 #import "BEDistributedMessagingCenter.h"
 
 //Private wrapper class to store the blocks, since CPDistributedMessagingCenter can only callback to methods.
-@interface BlockMapperClass : NSObject
+@interface BEBlockMapper : NSObject
++ (instancetype)sharedInstance;
 - (void *)addBlock:(BEDMCAnswerBlock)block;
 @end
 
-@implementation BlockMapperClass {
+@implementation BEBlockMapper {
     NSMutableDictionary *_callbacks;
 	NSUInteger _key;
     OSSpinLock _spinLock;
 	OSSpinLock _fullLock;
+}
+
++ (instancetype)sharedInstance {
+	static BEBlockMapper* mapperInstance;
+	static dispatch_once_t onceToken;
+	dispatch_once(&onceToken, ^{
+		mapperInstance = [[self alloc] init];
+	});
+	return mapperInstance;
 }
 
 - (instancetype)init {
@@ -57,12 +67,12 @@
  Store a new block for dispatching, and return its context ID
  Example usage:
  @code
- static BlockMapperClass* mapper = nil;
+ static BEBlockMapper* mapper = nil;
  ...
  if (!mapper) {
  static dispatch_once_t onceToken;
  dispatch_once(&onceToken, ^{
- mapper = [[BlockMapperClass alloc] init];
+ mapper = [[BEBlockMapper alloc] init];
  });
  }
  ...
@@ -100,7 +110,7 @@
 
 @end
 
-static BlockMapperClass* mapper = nil;
+static BEBlockMapper* mapper = nil;
 
 @implementation BEDistributedMessagingCenter
 
@@ -122,14 +132,7 @@ static BlockMapperClass* mapper = nil;
  @param BEDMCAnswerBlock block - the block to be executed on reply.
  */
 - (void)sendMessageAndReceiveReplyName:(NSString*)messageName userInfo:(id)userInfo toCallbackBlock:(BEDMCAnswerBlock)block {
-	if (!mapper) {
-		static dispatch_once_t onceToken;
-		dispatch_once(&onceToken, ^{
-			mapper = [[BlockMapperClass alloc] init];
-		});
-	}
-	
-	[self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:mapper selector:@selector(messagingCenter:gotReply:unknown:context:) context:[mapper addBlock:block]];
+	[self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:[mapper sharedInstance] selector:@selector(messagingCenter:gotReply:unknown:context:) context:[[mapper sharedInstance] addBlock:block]];
 }
 
 @end
