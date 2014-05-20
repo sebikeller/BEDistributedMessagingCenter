@@ -22,18 +22,18 @@
 
 @implementation BEBlockMapper {
     NSMutableDictionary *_callbacks;
-	NSUInteger _key;
+    NSUInteger _key;
     OSSpinLock _spinLock;
-	OSSpinLock _fullLock;
+    OSSpinLock _fullLock;
 }
 
 + (instancetype)sharedInstance {
-	static BEBlockMapper* mapperInstance;
-	static dispatch_once_t onceToken;
-	dispatch_once(&onceToken, ^{
-		mapperInstance = [[self alloc] init];
-	});
-	return mapperInstance;
+    static BEBlockMapper* mapperInstance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        mapperInstance = [[self alloc] init];
+    });
+    return mapperInstance;
 }
 
 - (instancetype)init {
@@ -49,18 +49,18 @@
  @return context ID.
  */
 - (NSUInteger)nextContextID {
-	NSUInteger nextKey = _key++;
-	OSSpinLockLock(&_fullLock);
-	OSSpinLockUnlock(&_fullLock);
-	OSSpinLockLock(&_spinLock);
-	while (_callbacks[@(nextKey)]) {
-		nextKey = _key++;
-	}
-	if (_callbacks.count == NSUIntegerMax) {
-		OSSpinLockLock(&_fullLock);
-	}
-	OSSpinLockUnlock(&_spinLock);
-	return nextKey;
+    NSUInteger nextKey = _key++;
+    OSSpinLockLock(&_fullLock);
+    OSSpinLockUnlock(&_fullLock);
+    OSSpinLockLock(&_spinLock);
+    while (_callbacks[@(nextKey)]) {
+        nextKey = _key++;
+    }
+    if (_callbacks.count == NSUIntegerMax) {
+        OSSpinLockLock(&_fullLock);
+    }
+    OSSpinLockUnlock(&_spinLock);
+    return nextKey;
 }
 
 /**
@@ -83,7 +83,7 @@
  */
 - (void *)addBlock:(BEDMCAnswerBlock)block {
     NSUInteger contextId = [self nextContextID];
-	OSSpinLockLock(&_spinLock);
+    OSSpinLockLock(&_spinLock);
     _callbacks[@(contextId)] = block;
     OSSpinLockUnlock(&_spinLock);
     return (void *)contextId;
@@ -93,15 +93,15 @@
  @private method to handle the calling of the passed blocks
  */
 - (void)messagingCenter:(CPDistributedMessagingCenter *)messagingCenter gotReply:(id)reply unknown:(void *)unknown context:(void *)context {
-	if (![messagingCenter isKindOfClass:[BEDistributedMessagingCenter class]]) {
-		NSLog(@"BEDistributedMessagingCenter: Unexpected type of messagingCenter: %@", [messagingCenter class]);
-	}
+    if (![messagingCenter isKindOfClass:[BEDistributedMessagingCenter class]]) {
+        NSLog(@"BEDistributedMessagingCenter: Unexpected type of messagingCenter: %@", [messagingCenter class]);
+    }
     NSUInteger contextId = (NSUInteger)context;
     NSNumber *key = @(contextId);
     OSSpinLockLock(&_spinLock);
     BEDMCAnswerBlock callback = _callbacks[key];
     [_callbacks removeObjectForKey:key];
-	OSSpinLockUnlock(&_fullLock);
+    OSSpinLockUnlock(&_fullLock);
     OSSpinLockUnlock(&_spinLock);
     if (callback) {
         callback(reply);
@@ -115,7 +115,7 @@ static BEBlockMapper* mapper = nil;
 @implementation BEDistributedMessagingCenter
 
 + (instancetype)centerNamed:(NSString *)centerName {
-	return (BEDistributedMessagingCenter*)[super centerNamed:centerName];
+    return (BEDistributedMessagingCenter*)[super centerNamed:centerName];
 }
 
 /**
@@ -124,7 +124,7 @@ static BEBlockMapper* mapper = nil;
  @code
  BEDistributedMessagingCenter* center = [BEDistributedMessagingCenter centerNamed:aCenterName];
  [center sendMessageAndReceiveReplyName:aMessageName userInfo:userInfoDictionary toCallbackBlock:^(id answer) {
- 	//do something with answer;
+     //do something with answer;
  }];
  @endcode
  @param NSString* messageName - the name of the message to send.
@@ -132,7 +132,7 @@ static BEBlockMapper* mapper = nil;
  @param BEDMCAnswerBlock block - the block to be executed on reply.
  */
 - (void)sendMessageAndReceiveReplyName:(NSString*)messageName userInfo:(id)userInfo toCallbackBlock:(BEDMCAnswerBlock)block {
-	[self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:[mapper sharedInstance] selector:@selector(messagingCenter:gotReply:unknown:context:) context:[[mapper sharedInstance] addBlock:block]];
+    [self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:[mapper sharedInstance] selector:@selector(messagingCenter:gotReply:unknown:context:) context:[[mapper sharedInstance] addBlock:block]];
 }
 
 @end
