@@ -1,5 +1,5 @@
 //
-//  CPDistributedMessagingCenter+BlockAdditions.m
+//  BEDistributedMessagingCenter.m
 //  automuter
 //
 //  Created by Sebastian Keller on 19.05.14.
@@ -12,17 +12,18 @@
 
 #import <libkern/OSAtomic.h>
 #import <objc/runtime.h>
-#import "CPDistributedMessagingCenter+BlockAdditions.h"
+#import "BEDistributedMessagingCenter.h"
 
 //Private wrapper class to store the blocks, since CPDistributedMessagingCenter can only callback to methods.
 @interface BlockMapperClass : NSObject
-- (void *)addBlock:(CPDMCAnswerBlock)block;
+- (void *)addBlock:(BEDMCAnswerBlock)block;
 @end
 
 @implementation BlockMapperClass {
     NSMutableDictionary *_callbacks;
-    NSUInteger _key;
+	NSUInteger _key;
     OSSpinLock _spinLock;
+	OSSpinLock _fullLock;
 }
 
 - (instancetype)init {
@@ -33,38 +34,64 @@
 }
 
 /**
+ @private 
+ generates a new contextID
+ @return context ID.
+ */
+- (NSUInteger)nextContextID {
+	NSUInteger nextKey = _key++;
+	OSSpinLockLock(&_fullLock);
+	OSSpinLockUnlock(&_fullLock);
+	OSSpinLockLock(&_spinLock);
+	while (_callbacks[@(nextKey)]) {
+		nextKey = _key++;
+	}
+	if (_callbacks.count == NSUIntegerMax) {
+		OSSpinLockLock(&_fullLock);
+	}
+	OSSpinLockUnlock(&_spinLock);
+	return nextKey;
+}
+
+/**
  Store a new block for dispatching, and return its context ID
  Example usage:
  @code
  static BlockMapperClass* mapper = nil;
  ...
  if (!mapper) {
- 	static dispatch_once_t onceToken;
- 	dispatch_once(&onceToken, ^{
- 		mapper = [[BlockMapperClass alloc] init];
- 	});
+ static dispatch_once_t onceToken;
+ dispatch_once(&onceToken, ^{
+ mapper = [[BlockMapperClass alloc] init];
+ });
  }
  ...
  [mapper addBlock:someBlock];
  @endcode
- @param CPDMCAnswerBlock block - the block to be added to the mapper.
+ @param BEDMCAnswerBlock block - the block to be added to the mapper.
  @return context ID to register/call the block on the mapper.
  */
-- (void *)addBlock:(CPDMCAnswerBlock)block {
-    OSSpinLockLock(&_spinLock);
-    NSUInteger contextId = _key;
-    _key++;
+- (void *)addBlock:(BEDMCAnswerBlock)block {
+    NSUInteger contextId = [self nextContextID];
+	OSSpinLockLock(&_spinLock);
     _callbacks[@(contextId)] = block;
     OSSpinLockUnlock(&_spinLock);
     return (void *)contextId;
 }
 
+/**
+ @private method to handle the calling of the passed blocks
+ */
 - (void)messagingCenter:(CPDistributedMessagingCenter *)messagingCenter gotReply:(id)reply unknown:(void *)unknown context:(void *)context {
+	if (![messagingCenter isKindOfClass:[BEDistributedMessagingCenter class]]) {
+		NSLog(@"BEDistributedMessagingCenter: Unexpected type of messagingCenter: %@", [messagingCenter class]);
+	}
     NSUInteger contextId = (NSUInteger)context;
     NSNumber *key = @(contextId);
     OSSpinLockLock(&_spinLock);
-    CPDMCAnswerBlock callback = _callbacks[key];
+    BEDMCAnswerBlock callback = _callbacks[key];
     [_callbacks removeObjectForKey:key];
+	OSSpinLockUnlock(&_fullLock);
     OSSpinLockUnlock(&_spinLock);
     if (callback) {
         callback(reply);
@@ -75,29 +102,33 @@
 
 static BlockMapperClass* mapper = nil;
 
-@implementation CPDistributedMessagingCenter (BlockAdditions)
+@implementation BEDistributedMessagingCenter
+
++ (instancetype)centerNamed:(NSString *)centerName {
+	return (BEDistributedMessagingCenter*)[super centerNamed:centerName];
+}
 
 /**
  Send a message with given name and userInfo-data and calls the passed block when a reply is received.
  Example usage:
  @code
- CPDistributedMessagingCenter* center = [CPDistributedMessagingCenter centerNamed:aCenterName];
+ BEDistributedMessagingCenter* center = [BEDistributedMessagingCenter centerNamed:aCenterName];
  [center sendMessageAndReceiveReplyName:aMessageName userInfo:userInfoDictionary toCallbackBlock:^(id answer) {
  	//do something with answer;
  }];
  @endcode
  @param NSString* messageName - the name of the message to send.
  @param id userInfo - data to pass to the message receiver.
- @param CPDMCAnswerBlock block - the block to be executed on reply.
+ @param BEDMCAnswerBlock block - the block to be executed on reply.
  */
-- (void)sendMessageAndReceiveReplyName:(NSString*)messageName userInfo:(id)userInfo toCallbackBlock:(CPDMCAnswerBlock)block {
+- (void)sendMessageAndReceiveReplyName:(NSString*)messageName userInfo:(id)userInfo toCallbackBlock:(BEDMCAnswerBlock)block {
 	if (!mapper) {
 		static dispatch_once_t onceToken;
 		dispatch_once(&onceToken, ^{
 			mapper = [[BlockMapperClass alloc] init];
 		});
 	}
-
+	
 	[self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:mapper selector:@selector(messagingCenter:gotReply:unknown:context:) context:[mapper addBlock:block]];
 }
 
