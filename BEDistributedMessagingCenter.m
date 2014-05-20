@@ -24,7 +24,6 @@
     NSMutableDictionary *_callbacks;
     NSUInteger _key;
     OSSpinLock _spinLock;
-    OSSpinLock _fullLock;
 }
 
 + (instancetype)sharedInstance {
@@ -50,16 +49,9 @@
  */
 - (NSUInteger)nextContextID {
     NSUInteger nextKey = _key++;
-    OSSpinLockLock(&_fullLock);
-    OSSpinLockUnlock(&_fullLock);
-    OSSpinLockLock(&_spinLock);
     while (_callbacks[@(nextKey)]) {
         nextKey = _key++;
     }
-    if (_callbacks.count == NSUIntegerMax) {
-        OSSpinLockLock(&_fullLock);
-    }
-    OSSpinLockUnlock(&_spinLock);
     return nextKey;
 }
 
@@ -82,8 +74,8 @@
  @return context ID to register/call the block on the mapper.
  */
 - (void *)addBlock:(BEDMCAnswerBlock)block {
-    NSUInteger contextId = [self nextContextID];
     OSSpinLockLock(&_spinLock);
+    NSUInteger contextId = [self nextContextID];
     _callbacks[@(contextId)] = block;
     OSSpinLockUnlock(&_spinLock);
     return (void *)contextId;
@@ -101,7 +93,6 @@
     OSSpinLockLock(&_spinLock);
     BEDMCAnswerBlock callback = _callbacks[key];
     [_callbacks removeObjectForKey:key];
-    OSSpinLockUnlock(&_fullLock);
     OSSpinLockUnlock(&_spinLock);
     if (callback) {
         callback(reply);
