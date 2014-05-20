@@ -1,5 +1,5 @@
 # BEDistributedMessagingCenter 
-## _BlocksEnhanced_CPDistributedMessagingCenter
+## BlocksEnhancedCPDistributedMessagingCenter
 
 This is a replacement class for [CPDistributedMessagingCenter][] (Part
 of the [AppSupport.framework][] on iOS), which gives you the posibility
