@@ -10,30 +10,30 @@
 #error This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
 #endif
 
+#import <libkern/OSAtomic.h>
 #import <objc/runtime.h>
 #import "CPDistributedMessagingCenter+BlockAdditions.h"
 
-//Private wrapper class to store the blocks as methods, since CPDistributedMessagingCenter can only callback to methods.
+//Private wrapper class to store the blocks, since CPDistributedMessagingCenter can only callback to methods.
 @interface BlockMapperClass : NSObject
-- (SEL)addBlock:(CPDMCAnswerBlock)block;
+- (void *)addBlock:(CPDMCAnswerBlock)block;
 @end
 
-@implementation BlockMapperClass
+@implementation BlockMapperClass {
+    NSMutableDictionary *_callbacks;
+    NSUInteger _key;
+    OSSpinLock _spinLock;
+}
 
-/**
- Generate new method name for the block we want to store on the mapper class
- Example usage:
- @code
- SEL newMethod = [self getMethodNameForBlock];
- @endcode
- @return cString the new generated Name.
- */
-- (const char*)getMethodNameForBlock {
-	return [[NSString stringWithFormat:@"__block__%llu:", [@([[NSDate date] timeIntervalSince1970]*1000) unsignedLongLongValue]] UTF8String];
+- (instancetype)init {
+    if ((self = [super init])) {
+        _callbacks = [[NSMutableDictionary alloc] init];
+    }
+    return self;
 }
 
 /**
- Generate new method name for the block we want to store on the mapper class
+ Store a new block for dispatching, and return its context ID
  Example usage:
  @code
  static BlockMapperClass* mapper = nil;
@@ -48,14 +48,27 @@
  [mapper addBlock:someBlock];
  @endcode
  @param CPDMCAnswerBlock block - the block to be added to the mapper.
- @return SEL to register/call the a block on the mapper.
+ @return context ID to register/call the block on the mapper.
  */
-- (SEL)addBlock:(CPDMCAnswerBlock)block {
-	SEL funcsel = sel_registerName([self getMethodNameForBlock]);
-	class_addMethod([BlockMapperClass class], funcsel, imp_implementationWithBlock(^(id _self, CPDistributedMessagingCenter* center, id answer){
-		block(answer);
-	}), "v@@@");
-	return funcsel;
+- (void *)addBlock:(CPDMCAnswerBlock)block {
+    OSSpinLockLock(&_spinLock);
+    NSUInteger contextId = _key;
+    _key++;
+    _callbacks[@(contextId)] = block;
+    OSSpinLockUnlock(&_spinLock);
+    return (void *)contextId;
+}
+
+- (void)messagingCenter:(CPDistributedMessagingCenter *)messagingCenter gotReply:(id)reply unknown:(void *)unknown context:(void *)context {
+    NSUInteger contextId = (NSUInteger)context;
+    NSNumber *key = @(contextId);
+    OSSpinLockLock(&_spinLock);
+    CPDMCAnswerBlock callback = _callbacks[key];
+    [_callbacks removeObjectForKey:key];
+    OSSpinLockUnlock(&_spinLock);
+    if (callback) {
+        callback(reply);
+    }
 }
 
 @end
@@ -84,8 +97,8 @@ static BlockMapperClass* mapper = nil;
 			mapper = [[BlockMapperClass alloc] init];
 		});
 	}
-	
-	[self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:mapper selector:[mapper addBlock:block] context:NULL];
+
+	[self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:mapper selector:@selector(messagingCenter:gotReply:unknown:context:) context:[mapper addBlock:block]];
 }
 
 @end
