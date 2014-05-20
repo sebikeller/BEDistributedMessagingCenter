@@ -110,8 +110,6 @@
 
 @end
 
-static BEBlockMapper* mapper = nil;
-
 @implementation BEDistributedMessagingCenter
 
 + (instancetype)centerNamed:(NSString *)centerName {
@@ -132,7 +130,7 @@ static BEBlockMapper* mapper = nil;
  @param BEDMCAnswerBlock block - the block to be executed on reply.
  */
 - (void)sendMessageAndReceiveReplyName:(NSString*)messageName userInfo:(id)userInfo toCallbackBlock:(BEDMCAnswerBlock)block {
-    [self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:[mapper sharedInstance] selector:@selector(messagingCenter:gotReply:unknown:context:) context:[[mapper sharedInstance] addBlock:block]];
+    [self sendMessageAndReceiveReplyName:messageName userInfo:userInfo toTarget:[BEBlockMapper sharedInstance] selector:@selector(messagingCenter:gotReply:unknown:context:) context:[[BEBlockMapper sharedInstance] addBlock:block]];
 }
 
 @end
