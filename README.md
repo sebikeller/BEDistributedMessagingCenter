@@ -6,26 +6,30 @@ to process a reply **asynchronously** in a [block][].
 
 ### Usage:
 
-    #import "BEDistributedMessagingCenter.h"
-    //...
-    BEDistributedMessagingCenter* center = [BEDistributedMessagingCenter centerNamed:@"aCenterName"];
-    //...
-    [center sendMessageAndReceiveReplyName:@"aMessageName" userInfo:@{@"someKey": someData} toCallbackBlock:^(id answer) {
-        //do something with answer;
-    }];
+``` objective-c
+#import "BEDistributedMessagingCenter.h"
+//...
+BEDistributedMessagingCenter* center = [BEDistributedMessagingCenter centerNamed:@"aCenterName"];
+//...
+[center sendMessageAndReceiveReplyName:@"aMessageName" userInfo:@{@"someKey": someData} toCallbackBlock:^(id answer) {
+    //do something with answer;
+}];
+```
 
 Make sure to update your make file, so [Theos][] includes the
 AppSupport.framework and [rocketbootstrap][], if you need to.
 
 Also make sure [ARC][] is on.
 
-    TARGET := iphone:clang
-    [...]
-    ADDITIONAL_OBJCFLAGS = -fobjc-arc
-    [...]
-    yourProjectName_FILES = [...] BEDistributedMessagingCenter.m
-    yourProjectName_PRIVATE_FRAMEWORKS = [...] AppSupport
-    yourProjectName_LIBRARIES = [...] rocketbootstrap
+``` make
+TARGET := iphone:clang
+[...]
+ADDITIONAL_OBJCFLAGS = -fobjc-arc
+[...]
+yourProjectName_FILES = [...] BEDistributedMessagingCenter.m
+yourProjectName_PRIVATE_FRAMEWORKS = [...] AppSupport
+yourProjectName_LIBRARIES = [...] rocketbootstrap
+```
 
 ## Special Thanks
 
