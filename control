@@ -1,0 +1,10 @@
+Package: ch.sebikeller.libbedistributedmessagingcenter
+Name: libbedistributedmessagingcenter
+Depends: 
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Developer package! Library to enhance CPDistributedMessagingCenter with blocks. See https://github.com/beatjunky99/BEDistributedMessagingCenter .
+Maintainer: Sebastian Keller
+Author: Sebastian Keller
+Section: System
+Tag: role::developer
